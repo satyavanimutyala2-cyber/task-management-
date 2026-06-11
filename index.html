@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskFlow - Task Manager</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+    .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+    .login-box {
+      background: #1e293b;
+      padding: 40px;
+      border-radius: 12px;
+      margin: 100px auto;
+      max-width: 400px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    }
+    h1 { text-align: center; margin-bottom: 30px; color: #60a5fa; }
+    input, select, button {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 15px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      background: #334155;
+      color: #e2e8f0;
+    }
+    input:focus, select:focus { outline: 2px solid #3b82f6; }
+    button {
+      background: #3b82f6;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { background: #2563eb; }
+    .btn-danger { background: #ef4444; }
+    .btn-danger:hover { background: #dc2626; }
+    .header {
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .task-form {
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .task-form input { flex: 1; min-width: 200px; margin: 0; }
+    .task-form select { width: 120px; margin: 0; }
+    .task-form button { width: auto; padding: 12px 30px; margin: 0; }
+    .task-item {
+      background: #1e293b;
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+    .task-item.completed { opacity: 0.6; }
+    .task-item.completed .task-title { text-decoration: line-through; }
+    .task-content { flex: 1; }
+    .task-title { font-size: 16px; margin-bottom: 5px; }
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-high { background: #7f1d1d; color: #fca5a5; }
+    .badge-medium { background: #78350f; color: #fcd34d; }
+    .badge-low { background: #14532d; color: #86efac; }
+    .checkbox { width: 20px; height: 20px; cursor: pointer; }
+    .error { color: #f87171; text-align: center; margin-top: 10px; }
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+    .tabs button { flex: 1; background: #334155; }
+    .tabs button.active { background: #3b82f6; }
+    @media (max-width: 600px) {
+      .task-form { flex-direction: column; }
+      .task-form select, .task-form button { width: 100%; }
+      .header { flex-direction: column; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+<script>
+let users = JSON.parse(localStorage.getItem('users') || '[]');
+let tasks = JSON.parse(localStorage.getItem('tasks') || '[]');
+let currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+let isLogin = true;
+
+function save() {
+  localStorage.setItem('users', JSON.stringify(users));
+  localStorage.setItem('tasks', JSON.stringify(tasks));
+  localStorage.setItem('currentUser', JSON.stringify(currentUser));
+}
+
+function render() {
+  const app = document.getElementById('app');
+  app.innerHTML = currentUser ? Dashboard() : LoginPage();
+}
+
+function LoginPage() {
+  return `
+    <div class="container">
+      <div class="login-box">
+        <h1>TaskFlow</h1>
+        <div class="tabs">
+          <button class="${isLogin ? 'active' : ''}" onclick="toggleAuth(true)">Login</button>
+          <button class="${!isLogin ? 'active' : ''}" onclick="toggleAuth(false)">Sign Up</button>
+        </div>
+        <input type="email" id="email" placeholder="Email" required>
+        <input type="password" id="password" placeholder="Password" required>
+        <button onclick="handleAuth()">${isLogin ? 'Login' : 'Sign Up'}</button>
+        <p id="error" class="error"></p>
+      </div>
+    </div>
+  `;
+}
+
+function Dashboard() {
+  const userTasks = tasks.filter(t => t.userId === currentUser.id);
+  return `
+    <div class="container">
+      <div class="header">
+        <h1>TaskFlow</h1>
+        <div>
+          <span style="margin-right:15px;color:#94a3b8">${currentUser.email}</span>
+          <button class="btn-danger" onclick="logout()">Logout</button>
+        </div>
+      </div>
+      
+      <div class="task-form">
+        <input type="text" id="taskTitle" placeholder="Enter task title...">
+        <select id="taskPriority">
+          <option value="Low">Low</option>
+          <option value="Medium">Medium</option>
+          <option value="High">High</option>
+        </select>
+        <button onclick="addTask()">Add Task</button>
+      </div>
+
+      <div id="taskList">
+        ${userTasks.length === 0 ? '<p style="text-align:center;color:#64748b;padding:40px">No tasks yet. Add one above!</p>' : 
+          userTasks.map(task => `
+            <div class="task-item ${task.completed ? 'completed' : ''}">
+              <input type="checkbox" class="checkbox" ${task.completed ? 'checked' : ''} onchange="toggleTask(${task.id})">
+              <div class="task-content">
+                <div class="task-title">${task.title}</div>
+                <span class="badge badge-${task.priority.toLowerCase()}">${task.priority}</span>
+              </div>
+              <button class="btn-danger" onclick="deleteTask(${task.id})">Delete</button>
+            </div>
+          `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function toggleAuth(login) {
+  isLogin = login;
+  render();
+}
+
+function handleAuth() {
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  const error = document.getElementById('error');
+  
+  if (!email || !password) {
+    error.textContent = 'Please fill all fields';
+    return;
+  }
+
+  if (isLogin) {
+    const user = users.find(u => u.email === email && u.password === password);
+    if (user) {
+      currentUser = user;
+      save();
+      render();
+    } else {
+      error.textContent = 'Invalid email or password';
+    }
+  } else {
+    if (users.find(u => u.email === email)) {
+      error.textContent = 'User already exists';
+      return;
+    }
+    const newUser = { id: Date.now(), email, password };
+    users.push(newUser);
+    currentUser = newUser;
+    save();
+    render();
+  }
+}
+
+function addTask() {
+  const title = document.getElementById('taskTitle').value;
+  const priority = document.getElementById('taskPriority').value;
+  if (!title.trim()) return;
+  
+  tasks.push({
+    id: Date.now(),
+    userId: currentUser.id,
+    title: title.trim(),
+    priority,
+    completed: false
+  });
+  save();
+  render();
+}
+
+function toggleTask(id) {
+  const task = tasks.find(t => t.id === id);
+  if (task) task.completed = !task.completed;
+  save();
+  render();
+}
+
+function deleteTask(id) {
+  tasks = tasks.filter(t => t.id !== id);
+  save();
+  render();
+}
+
+function logout() {
+  currentUser = null;
+  save();
+  render();
+}
+
+// Start app
+render();
+</script>
+</body>
+</html>
